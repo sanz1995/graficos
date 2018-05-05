@@ -1,36 +1,35 @@
 #version 330 core
 out vec4 color;
-uniform vec3 light_pos;
-uniform vec3 camera;
+
+uniform vec3 lPos;
+uniform int m;
+uniform vec3 eye;
+uniform sampler2D sampler;
+
 in vec3 P;
 in vec3 N;
+in vec3 TC;
 void main()
 {
 
 
-vec3 L = normalize(light_pos-P);
+vec3 L = normalize(lPos-P);
 
-vec3 V = normalize(P-camera);
+vec3 V = normalize(eye-P);
 
-vec3 R = reflect(-L, N);
-
-
+vec3 Ref = reflect(-L, N);
 
 vec3 diffuse = vec3(max(dot(N, L), 0.0));
-vec3 specular = vec3(pow(max(dot(R, V), 0.0), 128));
 
+vec3 specular = vec3(pow(max(dot(Ref, V), 0.0), m));
 
-
-
-
-
-//vec3 diffuse = vec3(0.2);
-//vec3 specular = vec3(0.2);
 
 color = vec4(0.1) + vec4(diffuse,1) + vec4(specular,1);
-//color = vec4(specular,1);
 
 
-//color=vec4(camera,1);
+vec3 textureVal = texture(sampler,TC.xy,0).rgb;
+
+
+color=vec4(textureVal,1)*color;
 
 }

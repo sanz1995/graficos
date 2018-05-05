@@ -1,5 +1,5 @@
 include ../Make.cnf
 
-LIBS+=-lglfw
+LIBS+=-lglfw -lpng
 
 -include $(DEPS)

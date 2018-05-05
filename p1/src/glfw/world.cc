@@ -14,8 +14,7 @@
 #include "world.h"
 #include "obj.h"
 
-#include <streambuf>
-
+#include "png.h"
 
 
 using namespace std;
@@ -23,35 +22,21 @@ using namespace std;
 
 GLuint svtx;
 GLuint sfrg;
-
 GLuint prog;
-
 GLuint vao;		
 GLuint vao_sz;
 
 
+glm::vec3 lPos = {0.0,20.0,0.0};;
 
-
-//
-
-glm::vec3   light_pos;
-
-
-
-GLuint view_loc_frag;
-GLuint light_loc_frag;
-GLuint eye_loc_frag;
-
-
+GLuint light_loc;
+GLuint eye_loc;
+GLuint m_loc;
 
 //
 
 
-
-
-
-
-
+PNG t;
 
 glm::mat4	view;
 GLuint		view_loc;
@@ -68,23 +53,43 @@ OBJ obj;
 
 void world_init()
 {
+
+	//Cargar modelo de tetera
 	glm::mat4 xf = glm::rotate(glm::radians(90.0f),glm::vec3(1.0f,0.0f,0.0f));
-
-//	obj.load("../model/cube.obj");
 	obj.load("../model/teapot.obj",xf);
-//	obj.load("../model/sphere.obj");
-//	obj.load("../model/venus.obj",xf);
-//	obj.load("../model/bunny.obj",xf);
-//	obj.load("../model/dragon.obj",xf);
-//	obj.load("../model/armadillo.obj",xf);
-//	obj.load("../model/tyra.obj",xf);
-//	obj.load("../model/nefertiti.obj");
-
-	//cout << obj.faces().size()/3 << endl;
 
 
 
 
+	//Cargar textura
+
+	t.load("../../Texturas/tex/wood.png");
+
+
+	GLuint texture;
+
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D,texture);
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, t.width(),t.height());
+
+
+	glTexSubImage2D(GL_TEXTURE_2D,0,0, 0,t.width(), t.height(),GL_RGB, GL_FLOAT,t.pixels().data());
+
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);//GL_LINEAR
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);//GL_LINEAR_MIPMAP_LINEAR
+
+	
+
+
+
+
+
+
+
+	// Array de vertices
 	vao = 0;
 	glGenVertexArrays(1,&vao);
 	glBindVertexArray(vao);
@@ -93,20 +98,32 @@ void world_init()
 
 
 
+	//Cargar atributos de los vertices
 	GLuint vpbo = 0;
 	glGenBuffers(1,&vpbo);
 	glBindBuffer(GL_ARRAY_BUFFER,vpbo);
 	glBufferData(GL_ARRAY_BUFFER,vao_sz*sizeof(glm::vec3),obj.faces().data(),GL_STATIC_DRAW);
 	glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(glm::vec3),NULL);
 
-
-	
 	GLuint vnbo = 0;
 	glGenBuffers(1,&vnbo);
 	glBindBuffer(GL_ARRAY_BUFFER,vnbo);
 	glBufferData(GL_ARRAY_BUFFER,vao_sz*sizeof(glm::vec3),obj.normals().data(),GL_STATIC_DRAW);
 	glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(glm::vec3),NULL);
 
+	GLuint vtbo = 0;
+	glGenBuffers(1,&vtbo);
+	glBindBuffer(GL_ARRAY_BUFFER,vtbo);
+	glBufferData(GL_ARRAY_BUFFER,vao_sz*sizeof(glm::vec3),obj.texcoord().data(),GL_STATIC_DRAW);
+	glVertexAttribPointer(2,3,GL_FLOAT,GL_FALSE,sizeof(glm::vec3),NULL);
+
+
+	
+
+
+
+
+	//Cargar vertex shader
 
 	
 	std::ifstream t1("shaders/sver.cc");
@@ -121,6 +138,12 @@ void world_init()
 	glShaderSource(svtx,1,&svtx_src,NULL);
 	glCompileShader(svtx);
 
+
+
+
+
+
+	//Cargar fragment shader
 
 	std::ifstream t2("shaders/sfrag.cc");
 	std::string str2((std::istreambuf_iterator<char>(t2)),
@@ -138,30 +161,31 @@ void world_init()
 
 
 
+	//Mostrar errores de compilación en fragment shader
+	GLint infoLogLength;
+    glGetShaderiv(sfrg, GL_INFO_LOG_LENGTH, &infoLogLength);
 
 
+
+    GLchar* strInfoLog = new GLchar[infoLogLength + 1];
+    glGetShaderInfoLog(sfrg, infoLogLength, NULL, strInfoLog);
+
+	fprintf(stderr, "Compilation error in shader: %s\n", strInfoLog);
+    delete[] strInfoLog;
+
+
+
+    //asociar los shaders
 
 	prog = glCreateProgram();
 	glAttachShader(prog,svtx);
 	glAttachShader(prog,sfrg);
 	glLinkProgram(prog);
 
-	view_loc = glGetUniformLocation(prog,"view");
 
-
-	//
-
-	view_loc_frag = glGetUniformLocation(prog,"view");
-	light_loc_frag = glGetUniformLocation(prog,"light_pos");
-	eye_loc_frag = glGetUniformLocation(prog,"eye");
-
-
-	light_pos = {0.0,20.0,0.0};
-
-
-	//
 
 	glClearColor(0,0,0,0);
+
 }
 
 void world_reshape(int w,int h)
@@ -200,41 +224,43 @@ void world_display(int w,int h)
 	glPolygonMode(GL_FRONT_AND_BACK,(world_fill ? GL_FILL : GL_LINE));
 	glEnable(GL_DEPTH_TEST);
 
+	glEnable(GL_MULTISAMPLE);
+
+
+
+
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 
 
 	glUseProgram(prog);
 
-
-
-
-
-	//
-
 	glm::vec3 eye = to+world_ro*axis;
 
-	glUniform3fv(eye_loc_frag,1, glm::value_ptr(eye));
-	glUniform3fv(light_loc_frag,1, glm::value_ptr(eye));
 
 
 
-	//
+	//Crear uniforms
 
+	view_loc = glGetUniformLocation(prog,"view");
+	light_loc = glGetUniformLocation(prog,"lPos");
+	eye_loc = glGetUniformLocation(prog,"eye");
+	m_loc = glGetUniformLocation(prog,"m");
 
-
-
+	glUniform3fv(eye_loc,1, glm::value_ptr(eye));
+	glUniform3fv(light_loc,1, glm::value_ptr(lPos));
+	glUniform1i(m_loc,5);
 	glUniformMatrix4fv(view_loc,1,GL_FALSE,glm::value_ptr(view));
 
-	glBindVertexArray(vao);
 
 
-//
+
+
+
+	//Activar atributos de los vertices
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
-
-
-//
+	glEnableVertexAttribArray(2);
 
 	glDrawArrays(GL_TRIANGLES,0,obj.faces().size());
 }
