@@ -1,0 +1,7 @@
+PROG=ogl
+SRCS= \
+png.cc \
+main.cc \
+obj.cc \
+world.cc
+
