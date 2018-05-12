@@ -29,9 +29,10 @@ GLuint vao_sz;
 
 glm::vec3 lPos = {0.0,20.0,0.0};;
 
-GLuint light_loc;
-GLuint eye_loc;
-GLuint m_loc;
+
+
+GLuint textureEnv;
+GLuint texture;
 
 //
 
@@ -39,7 +40,6 @@ GLuint m_loc;
 PNG t;
 
 glm::mat4	view;
-GLuint		view_loc;
 
 void glcheck(const string& msg)
 {
@@ -50,13 +50,17 @@ void glcheck(const string& msg)
 }
 
 OBJ obj;
-
+string name;
 void world_init()
 {
 
 	//Cargar modelo de tetera
 	glm::mat4 xf = glm::rotate(glm::radians(90.0f),glm::vec3(1.0f,0.0f,0.0f));
-	obj.load("../model/teapot.obj",xf);
+	
+
+	name = "teapot";
+	obj.load("../model/"+name+".obj",xf);
+	//obj.load("../model/sphere.obj",xf);
 
 
 
@@ -64,11 +68,12 @@ void world_init()
 	//Cargar textura
 
 	t.load("../../Texturas/tex/wood.png");
+	//t.load("../../Texturas/tex/checker.png");
 
 
-	GLuint texture;
 
 	glGenTextures(1, &texture);
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D,texture);
 	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, t.width(),t.height());
 
@@ -81,8 +86,27 @@ void world_init()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);//GL_LINEAR
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);//GL_LINEAR_MIPMAP_LINEAR
 
-	
 
+
+
+	PNG env;
+	env.load("../../env/sphr/lake.png");
+
+
+
+	glGenTextures(1, &textureEnv);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D,textureEnv);
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, env.width(),env.height());
+
+
+	glTexSubImage2D(GL_TEXTURE_2D,0,0, 0,env.width(), env.height(),GL_RGB, GL_FLOAT,env.pixels().data());
+
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);//GL_LINEAR
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);//GL_LINEAR_MIPMAP_LINEAR
 
 
 
@@ -139,6 +163,17 @@ void world_init()
 	glCompileShader(svtx);
 
 
+		//Mostrar errores de compilación en fragment shader
+	GLint infoLogLength1;
+    glGetShaderiv(svtx, GL_INFO_LOG_LENGTH, &infoLogLength1);
+    GLchar* strInfoLog1 = new GLchar[infoLogLength1 + 1];
+    glGetShaderInfoLog(svtx, infoLogLength1, NULL, strInfoLog1);
+    if(strlen(strInfoLog1) > 5){
+    	fprintf(stderr, "Compilation error in vertex shader: %s\n", strInfoLog1);
+    }
+    delete[] strInfoLog1;
+
+
 
 
 
@@ -164,13 +199,11 @@ void world_init()
 	//Mostrar errores de compilación en fragment shader
 	GLint infoLogLength;
     glGetShaderiv(sfrg, GL_INFO_LOG_LENGTH, &infoLogLength);
-
-
-
     GLchar* strInfoLog = new GLchar[infoLogLength + 1];
     glGetShaderInfoLog(sfrg, infoLogLength, NULL, strInfoLog);
-
-	fprintf(stderr, "Compilation error in shader: %s\n", strInfoLog);
+    if(strlen(strInfoLog) > 5){
+    	fprintf(stderr, "Compilation error in fragment shader: %s\n", strInfoLog);
+    }
     delete[] strInfoLog;
 
 
@@ -242,16 +275,34 @@ void world_display(int w,int h)
 
 	//Crear uniforms
 
-	view_loc = glGetUniformLocation(prog,"view");
-	light_loc = glGetUniformLocation(prog,"lPos");
-	eye_loc = glGetUniformLocation(prog,"eye");
-	m_loc = glGetUniformLocation(prog,"m");
+
+	GLuint view_loc = glGetUniformLocation(prog,"view");
+	GLuint light_loc = glGetUniformLocation(prog,"lPos");
+	GLuint eye_loc = glGetUniformLocation(prog,"eye");
+	GLuint m_loc = glGetUniformLocation(prog,"m");
+	GLuint sphere_loc = glGetUniformLocation(prog,"sphere");
+
+
+	GLint sampler1Loc = glGetUniformLocation(prog, "sampler1");
+	GLint sampler2Loc = glGetUniformLocation(prog, "sampler2");
+
+	glUniform1i(sampler1Loc, 0); // Texture unit 2 is for normal maps.
+	glUniform1i(sampler2Loc, 1); // Texture unit 4 is for shadow maps.
+
+
 
 	glUniform3fv(eye_loc,1, glm::value_ptr(eye));
 	glUniform3fv(light_loc,1, glm::value_ptr(lPos));
 	glUniform1i(m_loc,5);
 	glUniformMatrix4fv(view_loc,1,GL_FALSE,glm::value_ptr(view));
 
+	bool isSphere = !name.compare("sphere");
+
+
+
+
+
+	glUniform1i(sphere_loc,isSphere);
 
 
 
